@@ -1,0 +1,8 @@
+.env
+nba_bot.db
+nba_bot.log
+sent_articles.json
+output/
+archive/
+__pycache__/
+*.pyc

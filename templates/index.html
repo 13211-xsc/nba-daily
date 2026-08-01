@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="NBA Daily">
+    <meta name="theme-color" content="#1D428A">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/static/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <title>🏀 NBA Daily</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<header id="header">
+    <div class="header-left">
+        <button id="btnBack" class="icon-btn" style="display:none" onclick="goBack()">←</button>
+        <span class="logo">🏀 NBA Daily</span>
+    </div>
+    <div class="header-right">
+        <button class="icon-btn" onclick="refreshArticle()" title="换一篇">🔄</button>
+        <button class="icon-btn" onclick="showHistory()" title="历史">📋</button>
+    </div>
+</header>
+
+<!-- ===== 加载动画 ===== -->
+<div id="loading" class="loading">
+    <div class="spinner"></div>
+    <p>正在获取最新NBA文章...</p>
+</div>
+
+<!-- ===== 空状态 ===== -->
+<div id="emptyState" class="empty-state" style="display:none">
+    <div class="empty-icon">🏀</div>
+    <h2>还没有文章</h2>
+    <p>点击下方按钮获取今日NBA新闻</p>
+    <button class="btn-primary" onclick="refreshArticle()">🔄 获取最新文章</button>
+</div>
+
+<!-- ===== 文章内容 ===== -->
+<main id="articleView" style="display:none">
+    <!-- 文章头部 -->
+    <div class="article-header">
+        <div class="article-meta">
+            <span id="articleDate">---</span>
+            <span id="articleSource">---</span>
+            <span id="articleStats">---</span>
+        </div>
+        <h1 id="articleTitle">---</h1>
+    </div>
+
+    <!-- 封面图 -->
+    <div id="coverImage" class="cover-image" style="display:none"></div>
+
+    <!-- 文章正文 -->
+    <div id="articleBody" class="article-body"></div>
+
+    <!-- 底部 -->
+    <div class="article-footer">
+        <a id="articleLink" href="#" target="_blank">🔗 英文原文</a>
+        <span>🤖 Google翻译</span>
+    </div>
+</main>
+
+<!-- ===== 历史列表 ===== -->
+<div id="historyView" style="display:none">
+    <h2 style="padding:15px;color:#1D428A;">📋 历史文章</h2>
+    <div id="historyList" class="history-list"></div>
+</div>
+
+<!-- ===== Toast ===== -->
+<div id="toast" class="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
