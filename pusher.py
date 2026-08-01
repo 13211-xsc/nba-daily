@@ -27,8 +27,9 @@ def _img_to_base64(path: Path) -> str:
 
 def _build_email_html(article: dict, translations: list[dict], html_path: str) -> str:
     """
-    构建邮件兼容的HTML（全部内联样式 + table布局）
-    这是关键：邮件客户端只认这种老式写法
+    构建邮件HTML — "The Fourth Quarter" 设计
+    灵感: NBA比赛末节的紧张感 — 暗色基调 + 冠军金点缀
+    签名元素: NBA数据线 (PTS/REB/AST) 展示文章统计
     """
     title_en = article.get("title", "NBA Daily")
     source = article.get("source", "Unknown")
@@ -36,6 +37,28 @@ def _build_email_html(article: dict, translations: list[dict], html_path: str) -
     date_str = datetime.now().strftime("%Y-%m-%d")
     local_images = article.get("local_images", [])
     date_dir = Path(html_path).parent
+    word_count = article.get("word_count", 0)
+    para_count = len(translations)
+    img_count = len(local_images)
+
+    # ═══ "Fourth Quarter" 色彩体系 ═══
+    # Arena Black: 球场熄灯后的暗色
+    # Championship Gold: Larry O'Brien冠军奖杯的金
+    # Intensity Red: 计时器的红
+    # Timeout White: 暂停时刻的白板
+    C = {
+        "bg":        "#e8e6e3",
+        "card":      "#ffffff",
+        "arena":     "#0d0d0d",   # 球馆暗色
+        "gold":      "#b8860b",   # 冠军金 (dark goldenrod)
+        "red":       "#c0392b",   # 强度红
+        "en_bg":     "#f7f5f2",   # 暖白 — 像战术板纸
+        "zh_bg":     "#fafafa",   # 冷白 — 中文区
+        "text":      "#262626",
+        "muted":     "#8c8c8c",
+        "border":    "#e0ddd9",
+        "film_bg":   "#f2f0ed",   # 图片衬底
+    }
 
     # ── 封面图 ──
     cover_html = ""
@@ -45,122 +68,230 @@ def _build_email_html(article: dict, translations: list[dict], html_path: str) -
             try:
                 cover_b64 = _img_to_base64(cover_path)
                 cover_html = f"""
-        <tr><td style="padding:0;">
-          <img src="{cover_b64}" width="100%" style="display:block;max-width:100%;border:0;">
+        <tr><td bgcolor="{C['arena']}" style="padding:0;line-height:0;">
+          <img src="{cover_b64}" width="100%" style="display:block;width:100%;border:0;">
         </td></tr>"""
             except Exception:
                 pass
 
+    # ── 计算图片插入位置 ──
+    # 封面已用第一张，剩余的均匀分布
+    inline_images = local_images[1:] if len(local_images) > 1 else []
+    total_paras = len([t for t in translations if t.get("en")])
+    # 计算每张图应该在第几个段落后插入
+    if inline_images and total_paras > 0:
+        img_positions = []
+        step = total_paras / (len(inline_images) + 1)
+        for k in range(1, len(inline_images) + 1):
+            img_positions.append(int(k * step))
+    else:
+        img_positions = []
+
     # ── 段落内容 ──
     paragraphs_html = ""
+    para_index = 0  # 有内容的段落计数
+
     for i, trans in enumerate(translations):
         en_text = trans.get("en", "")
         zh_text = trans.get("zh", "")
         if not en_text:
             continue
 
+        # 英文: 暖白底 + 金色左边线, Georgia 衬线体
         paragraphs_html += f"""
-        <tr><td style="padding:16px 20px 8px 20px;">
-          <span style="display:inline-block;font-size:11px;font-weight:bold;color:#fff;
-                       background:#1D428A;padding:3px 10px;border-radius:10px;">EN</span>
-          <p style="color:#333;font-size:15px;line-height:1.8;margin:8px 0 0 0;
-                    font-family:Arial,Helvetica,sans-serif;">
-            {en_text}
-          </p>
-        </td></tr>
-        <tr><td style="padding:4px 20px 16px 20px;">
-          <span style="display:inline-block;font-size:11px;font-weight:bold;color:#fff;
-                       background:#C8102E;padding:3px 10px;border-radius:10px;">中文</span>
-          <p style="color:#444;font-size:15px;line-height:1.8;margin:8px 0 0 0;
-                    font-family:'PingFang SC','Microsoft YaHei','微软雅黑',Arial,sans-serif;">
-            {zh_text or '(翻译中...)'}
-          </p>
+        <tr><td style="padding:0 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="margin:16px 0 0 0;background:{C['en_bg']};
+                        border-left:2px solid {C['gold']};">
+            <tr><td style="padding:16px 18px 16px 18px;">
+              <span style="font-size:9px;font-weight:700;letter-spacing:2px;
+                           color:{C['gold']};text-transform:uppercase;
+                           font-family:Arial,Helvetica,sans-serif;">English</span>
+              <p style="color:{C['text']};font-size:15px;line-height:1.9;margin:6px 0 0 0;
+                        font-family:Georgia,'Times New Roman','Songti SC',serif;">
+                {en_text}
+              </p>
+            </td></tr>
+          </table>
         </td></tr>"""
 
-        # 在段落间插入图片
-        img_idx = i
-        if local_images and img_idx < len(local_images) and img_idx > 0:
-            img_info = local_images[img_idx]
-            img_path = date_dir / img_info["local_path"]
-            if img_path.exists():
-                try:
-                    img_b64 = _img_to_base64(img_path)
-                    alt = img_info.get("alt", "")
-                    paragraphs_html += f"""
-        <tr><td style="padding:12px 20px;text-align:center;">
-          <img src="{img_b64}" width="90%" style="display:block;max-width:100%;
-               margin:0 auto;border-radius:8px;border:1px solid #e0e0e0;">
-          <span style="display:block;font-size:12px;color:#999;margin-top:6px;">{alt}</span>
+        # 中文: 白底 + 红色左边线
+        if zh_text:
+            paragraphs_html += f"""
+        <tr><td style="padding:0 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="margin:6px 0 0 0;background:{C['zh_bg']};
+                        border-left:2px solid {C['red']};">
+            <tr><td style="padding:14px 18px 14px 18px;">
+              <span style="font-size:9px;font-weight:700;letter-spacing:2px;
+                           color:{C['red']};text-transform:uppercase;
+                           font-family:Arial,Helvetica,sans-serif;">中文翻译</span>
+              <p style="color:#333;font-size:15px;line-height:1.9;margin:6px 0 0 0;
+                        font-family:'PingFang SC','Microsoft YaHei','微软雅黑',
+                        'Hiragino Sans GB',sans-serif;">
+                {zh_text}
+              </p>
+            </td></tr>
+          </table>
         </td></tr>"""
-                except Exception:
-                    pass
 
-    # ── 组装完整邮件HTML ──
+        # 在计算好的位置插入图片
+        if para_index in img_positions:
+            img_idx_inline = img_positions.index(para_index)
+            if img_idx_inline < len(inline_images):
+                img_info = inline_images[img_idx_inline]
+                img_path = date_dir / img_info["local_path"]
+                if img_path.exists():
+                    try:
+                        img_b64 = _img_to_base64(img_path)
+                        alt = img_info.get("alt", "")
+                        paragraphs_html += f"""
+        <tr><td style="padding:24px 28px 4px 28px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr><td bgcolor="{C['film_bg']}" style="padding:3px;text-align:center;">
+              <img src="{img_b64}" width="100%"
+                   style="display:block;width:100%;border:0;">
+            </td></tr>"""
+                        if alt:
+                            paragraphs_html += f"""
+            <tr><td style="padding:8px 6px 0 6px;">
+              <span style="font-size:11px;color:{C['muted']};
+                           font-family:'PingFang SC','Microsoft YaHei',sans-serif;">
+                {alt}
+              </span>
+            </td></tr>"""
+                        paragraphs_html += """
+          </table>
+        </td></tr>"""
+                    except Exception:
+                        pass
+
+        para_index += 1
+
+    # ═══ 组装邮件 ═══
     email_html = f"""<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:0;background:#f2f2f2;">
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background:{C['bg']};-webkit-font-smoothing:antialiased;">
 
-<!-- 外层容器 -->
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f2;">
-<tr><td align="center" style="padding:20px 10px;">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="{C['bg']}">
+<tr><td align="center" style="padding:20px 10px 40px 10px;">
 
-  <!-- 主卡片 600px -->
+  <!-- ═══ 主卡片 ═══ -->
   <table width="600" cellpadding="0" cellspacing="0"
-         style="background:#fff;border-radius:12px;overflow:hidden;
-                box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;">
+         style="background:{C['card']};max-width:600px;
+                box-shadow:0 2px 16px rgba(0,0,0,0.06);">
 
-    <!-- 头部 -->
-    <tr><td style="background:#1D428A;padding:24px 20px;text-align:center;">
-      <div style="font-size:32px;">🏀</div>
-      <div style="color:#fff;font-size:16px;font-weight:bold;letter-spacing:2px;
-                  margin-top:6px;font-family:Arial,Helvetica,sans-serif;">
-        NBA DAILY · 每日NBA精选
+    <!-- ── 头部: 暗色球馆风 ── -->
+    <tr><td bgcolor="{C['arena']}"
+            style="padding:32px 24px 24px 24px;text-align:center;">
+      <div style="font-size:36px;line-height:1;letter-spacing:-1px;">&#127936;</div>
+      <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:4px;
+                  margin-top:8px;font-family:Arial,Helvetica,sans-serif;">
+        NBA DAILY
+      </div>
+      <div style="width:36px;height:2px;background:{C['gold']};margin:12px auto 0 auto;"></div>
+      <div style="color:rgba(255,255,255,0.45);font-size:10px;letter-spacing:3px;
+                  margin-top:8px;font-family:Arial,Helvetica,sans-serif;">
+        每日精选 &middot; 双语阅读
       </div>
     </td></tr>
 
-    <!-- 标题区 -->
-    <tr><td style="padding:20px 24px 0 24px;">
-      <div style="color:#888;font-size:13px;margin-bottom:8px;
-                  font-family:Arial,Helvetica,sans-serif;">
-        📅 {date_str} &nbsp;·&nbsp; 📍 {source}
-      </div>
-      <h1 style="color:#111;font-size:20px;line-height:1.4;margin:0 0 4px 0;
-                 font-family:Arial,Helvetica,sans-serif;">
+    <!-- ── NBA数据线 (签名元素) ── -->
+    <tr><td style="padding:0 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="border-bottom:1px solid {C['border']};">
+        <tr>
+          <td align="center" style="padding:18px 0 14px 0;width:33%;">
+            <div style="font-size:24px;font-weight:700;color:{C['arena']};
+                        font-family:Arial,Helvetica,sans-serif;">{word_count}</div>
+            <div style="font-size:9px;color:{C['muted']};letter-spacing:2px;
+                        text-transform:uppercase;font-family:Arial,sans-serif;">PTS</div>
+          </td>
+          <td align="center" style="padding:18px 0 14px 0;width:33%;
+                     border-left:1px solid {C['border']};border-right:1px solid {C['border']};">
+            <div style="font-size:24px;font-weight:700;color:{C['arena']};
+                        font-family:Arial,Helvetica,sans-serif;">{para_count}</div>
+            <div style="font-size:9px;color:{C['muted']};letter-spacing:2px;
+                        text-transform:uppercase;font-family:Arial,sans-serif;">REB</div>
+          </td>
+          <td align="center" style="padding:18px 0 14px 0;width:33%;">
+            <div style="font-size:24px;font-weight:700;color:{C['arena']};
+                        font-family:Arial,Helvetica,sans-serif;">{img_count}</div>
+            <div style="font-size:9px;color:{C['muted']};letter-spacing:2px;
+                        text-transform:uppercase;font-family:Arial,sans-serif;">AST</div>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- ── 日期来源 ── -->
+    <tr><td style="padding:16px 28px 0 28px;">
+      <span style="font-size:11px;color:{C['muted']};
+                   font-family:Arial,Helvetica,sans-serif;">
+        {date_str} &nbsp;&middot;&nbsp; {source}
+      </span>
+    </td></tr>
+
+    <!-- ── 标题: Georgia 衬线体, 杂志感 ── -->
+    <tr><td style="padding:10px 28px 0 28px;">
+      <h1 style="color:{C['arena']};font-size:22px;line-height:1.3;margin:0;
+                 font-family:Georgia,'Times New Roman','Songti SC',serif;
+                 font-weight:700;letter-spacing:-0.2px;">
         {title_en}
       </h1>
-      <div style="height:3px;background:linear-gradient(to right,#1D428A,#C8102E);
-                  margin-top:16px;border-radius:2px;"></div>
     </td></tr>
 
-    <!-- 封面图 -->
+    <!-- ── 装饰线 ── -->
+    <tr><td style="padding:14px 28px 4px 28px;">
+      <table width="48" cellpadding="0" cellspacing="0">
+        <tr>
+          <td width="28" height="2" bgcolor="{C['arena']}"></td>
+          <td width="4"></td>
+          <td width="16" height="2" bgcolor="{C['gold']}"></td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- ── 封面图 ── -->
     {cover_html}
 
-    <!-- 文章正文 -->
+    <!-- ── 正文 ── -->
     {paragraphs_html}
 
-    <!-- 分隔线 -->
-    <tr><td style="padding:0 20px;">
-      <div style="border-top:1px dashed #ddd;margin:8px 0 16px 0;"></div>
+    <!-- ── 结尾 ── -->
+    <tr><td style="padding:28px 28px 0 28px;">
+      <div style="border-top:1px solid {C['border']};"></div>
     </td></tr>
 
-    <!-- 底部 -->
-    <tr><td style="padding:8px 24px 20px 24px;text-align:center;">
-      <p style="color:#999;font-size:12px;margin:0 0 8px 0;
-                font-family:'PingFang SC','Microsoft YaHei',Arial,sans-serif;">
-        📂 完整文章已保存至本地 &nbsp;|&nbsp; 🤖 翻译由Google提供
-      </p>
-      <a href="{article_url}" target="_blank"
-         style="color:#1D428A;font-size:13px;font-weight:bold;text-decoration:none;
+    <tr><td style="padding:20px 28px 28px 28px;text-align:center;">
+      <a href="{article_url}" target="_blank" rel="noopener"
+         style="display:inline-block;background:{C['arena']};color:#fff;
+                text-decoration:none;padding:12px 32px;font-size:12px;
+                font-weight:600;letter-spacing:0.5px;
                 font-family:Arial,Helvetica,sans-serif;">
-        🔗 阅读英文原文 →
+        阅读英文原文 &rarr;
       </a>
-      <p style="color:#bbb;font-size:11px;margin:10px 0 0 0;
-                font-family:Arial,Helvetica,sans-serif;">
-        生成于 {datetime.now().strftime('%Y-%m-%d %H:%M')}
+      <p style="color:{C['muted']};font-size:10px;margin:16px 0 0 0;
+                font-family:'PingFang SC','Microsoft YaHei','微软雅黑',sans-serif;">
+        翻译由 Google 提供 &nbsp;&middot;&nbsp;
+        {datetime.now().strftime('%Y-%m-%d %H:%M')}
       </p>
     </td></tr>
 
+  </table>
+
+  <!-- ── 尾注 ── -->
+  <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;margin-top:14px;">
+    <tr><td style="text-align:center;padding:6px 0;">
+      <span style="font-size:10px;color:#c0bdb8;font-family:Arial,sans-serif;">
+        NBA Daily Bot &mdash; Python + Google Translate
+      </span>
+    </td></tr>
   </table>
 
 </td></tr>

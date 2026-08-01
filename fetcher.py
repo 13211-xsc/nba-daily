@@ -142,24 +142,62 @@ def _extract_article_text(soup: BeautifulSoup) -> str:
 
 
 def _extract_images(soup: BeautifulSoup, base_url: str) -> list[dict]:
-    """从文章中提取图片URL和alt文本"""
+    """从文章正文区域提取有效图片（排除广告、图标、侧边栏缩略图）"""
     images = []
     seen_urls = set()
 
-    # 在文章主体中查找图片
-    article = soup.select_one("article") or soup
+    # 只从文章正文容器中找图片，不搜整个页面
+    content_selectors = [
+        "article",
+        '[class*="article-body"]',
+        '[class*="article-content"]',
+        '[class*="ArticleBody"]',
+        '[class*="post-content"]',
+        '[class*="story-body"]',
+        '[class*="content-body"]',
+        '[class*="caas-body"]',
+        "main",
+        '[role="main"]',
+    ]
 
-    for img in article.find_all("img"):
+    content_area = None
+    for sel in content_selectors:
+        content_area = soup.select_one(sel)
+        if content_area:
+            break
+
+    if not content_area:
+        content_area = soup
+
+    for img in content_area.find_all("img"):
         src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
         if not src:
             continue
 
-        # 解析完整URL
         full_url = urljoin(base_url, src)
+        url_lower = full_url.lower()
 
-        # 过滤小图标、logo、广告等
-        if any(x in full_url.lower() for x in ["icon", "logo", "avatar", "pixel", "1x1", "ad.", "spacer"]):
+        # 过滤：路径关键词
+        skip_keywords = [
+            "icon", "logo", "avatar", "pixel", "1x1", "ad.", "spacer",
+            "sprite", "blank", "transparent", "placeholder", "badge",
+            "favicon", "share", "social", "twitter", "facebook",
+            "newsletter", "subscribe", "author-headshot", "headshot",
+            "50x50", "60x60", "80x80", "100x100",
+        ]
+        if any(x in url_lower for x in skip_keywords):
             continue
+
+        # 过滤：图片尺寸属性（太小的跳过）
+        width = img.get("width") or ""
+        height = img.get("height") or ""
+        try:
+            w = int(width) if width else 0
+            h = int(height) if height else 0
+            if w > 0 and h > 0 and (w < 200 or h < 150):
+                continue
+        except (ValueError, TypeError):
+            pass  # 无法解析尺寸，继续
 
         # 去重
         if full_url in seen_urls:
@@ -167,7 +205,18 @@ def _extract_images(soup: BeautifulSoup, base_url: str) -> list[dict]:
         seen_urls.add(full_url)
 
         alt = img.get("alt", "") or img.get("title", "")
+
+        # 过滤无意义的alt文本
+        skip_alts = ["thumbnail", "icon", "logo", "avatar", "photo", "image"]
+        if alt.lower().strip() in skip_alts:
+            alt = ""
+
         images.append({"url": full_url, "alt": alt})
+
+    # 最多取5张，优先保留有alt描述的
+    with_alt = [i for i in images if i["alt"]]
+    without_alt = [i for i in images if not i["alt"]]
+    images = (with_alt + without_alt)[:5]
 
     return images
 
