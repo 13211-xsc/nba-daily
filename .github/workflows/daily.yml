@@ -1,22 +1,22 @@
-  name: NBA Daily Email
+name: NBA Daily Email
 
-  on:
-    schedule:
-      - cron: "0 1 * * *"
-    workflow_dispatch:
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
 
-  jobs:
-    send:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
-        - uses: actions/setup-python@v5
-          with:
-            python-version: "3.12"
-        - run: pip install -r requirements.txt
-        - name: Run NBA Bot
-          env:
-            MAIL_TO: ${{ secrets.MAIL_TO }}
-            MAIL_FROM: ${{ secrets.MAIL_FROM }}
-            MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          run: python main.py
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run NBA Bot
+        env:
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+        run: python main.py
