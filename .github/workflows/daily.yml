@@ -2,7 +2,7 @@ name: NBA Daily Email
 
 on:
   schedule:
-    - cron: "15 2 * * *"
+    - cron: "35 2 * * *"
   workflow_dispatch:
 
 jobs:
